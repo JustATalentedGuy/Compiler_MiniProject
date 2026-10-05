@@ -1,0 +1,12 @@
+// If-else, shadowing, unary minus, remainder and definite assignment
+int x = 17;
+int answer;
+if (x % 2 == 0) {
+    answer = x / 2;
+} else {
+    int x = 3;
+    answer = -(x * 4) + 1;
+    print(x);
+}
+print(answer);
+print(x);

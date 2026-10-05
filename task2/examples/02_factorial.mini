@@ -1,0 +1,8 @@
+// Loop-carried assignments and a relational condition
+int n = 5;
+int factorial = 1;
+while (n > 1) {
+    factorial = factorial * n;
+    n = n - 1;
+}
+print(factorial);

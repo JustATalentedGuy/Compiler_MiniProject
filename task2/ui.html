@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Task 2 Cross Compiler</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f7;color:#19212c;font:15px system-ui,sans-serif}
+header{background:#172839;color:white;padding:18px 28px}h1{margin:0;font-size:25px}header p{margin:6px 0 0;color:#cfdae5}
+main{padding:22px 28px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+button,select,.file{border:1px solid #b2c0ce;border-radius:5px;padding:9px 13px;background:white;color:#19212c;font:inherit;cursor:pointer}
+button.primary{background:#17577c;color:white;border-color:#17577c}button:disabled{opacity:.5;cursor:wait}
+.panels{display:grid;grid-template-columns:minmax(330px,38%) minmax(480px,62%);gap:18px}
+.card{background:white;border:1px solid #d9e0e7;border-radius:7px;overflow:hidden}h2{font-size:17px;margin:0;padding:13px 16px;background:#e8edf2}
+textarea{width:100%;height:565px;border:0;resize:vertical;padding:18px;outline-color:#17577c;tab-size:4;font:15px/1.65 Consolas,monospace;color:#20344a}
+.tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid #d9e0e7;padding:8px;gap:5px}.tabs button{font-size:13px;padding:7px 9px;border-color:transparent}
+.tabs button.active{background:#17577c;color:white}pre{margin:0;padding:18px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.55 Consolas,monospace;max-height:555px;overflow:auto;min-height:500px}
+#output.terminal{background:#111c28;color:#dbebdc;font-size:15px;line-height:1.7}
+#status{padding:11px 15px;margin-bottom:16px;background:#e1e9f0;border-radius:5px}#status.ok{background:#def0e5}#status.fail{background:#fbe6e4}
+.note{font-size:13px;color:#5a6876;margin:9px 0}input[type=file]{display:none}
+@media(max-width:900px){.panels{grid-template-columns:1fr}textarea{height:300px}}
+</style></head>
+<body><header><h1>Task 2 Cross Compiler</h1><p>Flex and Bison analysis · Three address code · C and RISC-V targets</p></header>
+<main>
+<div class="toolbar">
+<select id="examples" aria-label="Example program"><option value="">Select an example</option></select>
+<label class="file">Open source file<input type="file" id="file" accept=".mini,.txt"></label>
+<button id="compile" class="primary">Compile</button><button id="run">Compile and run both targets</button>
+<label><input id="optimize" type="checkbox" checked> Optimize TAC</label><button id="download" disabled>Download results</button>
+</div>
+<div id="status" role="status">Enter a program or select an example, then compile it.</div>
+<div class="panels"><section class="card"><h2>Source program</h2><textarea id="source" spellcheck="false" aria-label="Source program"></textarea></section>
+<section class="card"><div class="tabs" id="tabs" aria-label="Compilation phases"></div><pre id="output" aria-live="polite">Compilation results appear here.</pre></section></div>
+<p class="note">Integer declarations, assignments, print, scoped blocks, if else and while. Conditions use comparisons. Results are signed 32 bit integers.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let examples={},result=null,active='terminal',revision=0;
+const names={terminal:'Terminal',tokens:'Tokens',diagnostics:'Diagnostics',symbols:'Symbols',ast:'AST',tac_text:'TAC',optimized_tac_text:'Optimized TAC',optimizations:'Optimizations',c:'C target',riscv:'RISC-V target'};
+for(const [key,label] of Object.entries(names)){const b=document.createElement('button');b.textContent=label;b.dataset.key=key;b.onclick=()=>{active=key;render()};$('tabs').append(b)}
+function terminal(){
+ if(!result)return 'Compilation results appear here.';
+ const lines=['COMPILATION RESULTS'+($('optimize').checked?' WITH OPTIMIZATION':''),''];
+ if(!result.success){lines.push('COMPILATION FAILED');for(const e of result.diagnostics)lines.push(`${e.phase.toUpperCase()} ERROR ${e.line}:${e.column}: ${e.message}`);lines.push('Target generation stopped.');return lines.join('\n')}
+ lines.push(`LEXICAL ANALYSIS    PASS (${result.tokens.length} tokens)`,`SYNTAX ANALYSIS     PASS (AST generated)`,`SEMANTIC ANALYSIS   PASS (${result.symbols.length} declarations)`,`TAC GENERATION     PASS (${result.tac.length} instructions)`,`OPTIMIZATION       PASS (${result.optimized_tac.length} instructions)`,`TARGET GENERATION  PASS (C and RV32IM assembly)`,'');
+ for(const r of result.executions||[]){lines.push(`GENERATED ${r.target==='c'?'C TARGET EXECUTED WITH GCC':'RISC-V TARGET EXECUTED WITH RARS'}`,`Exit code: ${r.returncode}`,'Output:',r.stdout.trimEnd()||'(no output)');if(r.stderr)lines.push('Diagnostics: '+r.stderr);lines.push('')}
+ if(result.executions?.length===2)lines.push(result.executions.every(r=>r.returncode===0)&&result.executions[0].stdout===result.executions[1].stdout?'C AND RISC-V OUTPUTS MATCH':'EXECUTION REQUIRES ATTENTION');
+ return lines.join('\n');
+}
+function render(){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.key===active));$('output').classList.toggle('terminal',active==='terminal');
+ if(active==='terminal')$('output').textContent=terminal();
+ else if(!result)$('output').textContent='Compile a source program first.';
+ else if(active==='tokens')$('output').textContent='LINE:COL  TYPE       LEXEME\n'+result.tokens.map(t=>`${String(t.line+':'+t.column).padEnd(10)}${t.type.padEnd(11)}${t.lexeme}`).join('\n');
+ else if(active==='diagnostics')$('output').textContent=result.diagnostics.length?result.diagnostics.map(e=>`${e.phase.toUpperCase()} ${e.line}:${e.column} ${e.message}`).join('\n'):'No lexical, syntax or semantic errors.';
+ else if(active==='optimizations')$('output').textContent=result.optimizations.join('\n')||'No transformations applied.';
+ else $('output').textContent=typeof result[active]==='string'?(result[active]||'Unavailable because compilation failed.'):JSON.stringify(result[active],null,2);
+}
+async function action(run){const requestedRevision=revision;$('compile').disabled=$('run').disabled=true;$('status').className='';$('status').textContent=run?'Compiling and executing both targets...':'Compiling...';
+ try{const response=await fetch(run?'/api/run':'/api/compile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:$('source').value,optimize:$('optimize').checked})});const data=await response.json();if(requestedRevision!==revision)return;if(!response.ok)throw Error(data.error);result=data;active='terminal';render();const good=result.success&&(result.executions||[]).every(r=>r.returncode===0);$('status').className=good?'ok':'fail';$('status').textContent=good?(run?'Compilation and execution completed.':'Compilation completed.'):'Compilation or execution failed. See diagnostics below.';$('download').disabled=false;
+ }catch(e){if(requestedRevision===revision){$('status').className='fail';$('status').textContent=e.message;result=null;$('download').disabled=true;render()}}finally{$('compile').disabled=$('run').disabled=false}}
+$('compile').onclick=()=>action(false);$('run').onclick=()=>action(true);
+function invalidate(){revision++;result=null;$('download').disabled=true;$('status').className='';$('status').textContent='Source changed. Compile to refresh results.';render()}
+$('source').oninput=invalidate;$('optimize').onchange=invalidate;
+$('examples').onchange=()=>{if(examples[$('examples').value]){$('source').value=examples[$('examples').value];invalidate()}};
+$('file').onchange=async()=>{const f=$('file').files[0];if(f){$('source').value=await f.text();$('examples').value='';invalidate()}};
+$('download').onclick=()=>{const blob=new Blob([JSON.stringify(result,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='compilation.json';a.click();URL.revokeObjectURL(url)};
+fetch('/api/examples').then(r=>r.json()).then(data=>{examples=data;for(const key of Object.keys(data)){const option=document.createElement('option');option.value=key;option.textContent=key.replaceAll('_',' ');$('examples').append(option)}const first=Object.keys(data)[0];$('examples').value=first;$('source').value=data[first];render()}).catch(e=>{$('status').textContent=e.message});
+</script></body></html>

@@ -1,0 +1,27 @@
+# Assignment materials and locally generated documentation
+*.doc
+*.docx
+*.pdf
+*.tex
+*.md
+*.png
+*.jpg
+*.jpeg
+*.aux
+*.log
+*.toc
+*.out
+*.synctex.gz
+task2/evidence/
+
+# Rebuilt frontend and Python cache
+__pycache__/
+*.py[cod]
+task2/frontend/frontend
+task2/frontend/frontend.exe
+
+# Packaging and optional IDE integration from the tool distribution
+task2/tools/winflexbison.zip
+task2/tools/winflexbison/custom_build_rules/
+
+# Third-party license notices remain included with redistributed tools.
